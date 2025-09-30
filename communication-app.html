@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Communication App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        html { font-family: 'Inter', sans-serif; }
+        .hidden { display: none !important; }
+        .sidebar { transition: transform 0.3s ease-in-out; }
+        .sidebar-open { transform: translateX(0); }
+        .sidebar-closed { transform: translateX(100%); }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+
+    <!-- Lobby Screen -->
+    <div id="lobby-screen" class="text-center">
+        <h1 class="text-5xl font-bold mb-4">ConnectSphere</h1>
+        <p class="text-gray-400 mb-8">Your Real-Time Collaboration Hub</p>
+        <div class="w-full max-w-md p-8 bg-gray-800 rounded-2xl shadow-xl">
+             <div class="space-y-4">
+                <button id="create-call-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-all disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>Create New Call</button>
+                <div class="flex items-center"><hr class="flex-grow border-t border-gray-600" /><span class="px-3 text-gray-400 text-sm">OR</span><hr class="flex-grow border-t border-gray-600" /></div>
+                <div class="flex gap-2">
+                    <input id="call-id-input" type="text" placeholder="Enter Call ID to Join" class="flex-grow bg-gray-700 text-white p-3 rounded-lg border-2 border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    <button id="join-call-btn" class="bg-gray-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-gray-500 transition disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>Join</button>
+                </div>
+            </div>
+        </div>
+        <p id="auth-status" class="text-sm text-gray-500 mt-4">Connecting...</p>
+    </div>
+    
+    <!-- In-Call Screen -->
+    <div id="call-screen" class="hidden w-full h-screen flex relative overflow-hidden">
+        <main class="flex-1 flex flex-col bg-black p-4">
+            <!-- Videos -->
+            <div class="relative flex-1 rounded-lg overflow-hidden">
+                <video id="remote-video" autoplay playsinline class="w-full h-full object-contain"></video>
+                <video id="local-video" autoplay playsinline muted class="absolute bottom-4 right-4 w-1/4 max-w-xs rounded-lg border-2 border-gray-700"></video>
+            </div>
+            <!-- Controls -->
+            <div class="mt-4 flex justify-center items-center gap-4">
+                 <button id="share-screen-btn" class="p-3 rounded-full bg-gray-700 hover:bg-gray-600 transition"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><path d="m7 12 5-5 5 5"/><path d="M12 7v5"/></svg></button>
+                 <button id="hangup-btn" class="p-4 rounded-full bg-red-600 hover:bg-red-700 transition transform hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.26 0-.51-.1-.7-.29-.39-.39-.39-1.03 0-1.42C4.68 12.2 7.88 11 11.99 11c.28 0 .5-.22.5-.5s-.22-.5-.5-.5zM21 6.01c-.39-.39-1.02-.39-1.41 0L17.5 8.09c-1.33-.89-2.8-1.54-4.38-1.95-.33-.08-.66.17-.66.51v3.32c0 .28.22.5.5.5.11 0 .22-.04.31-.11 2.09-.79 4.31-.22 5.92 1.39l-1.92 1.92c-.39.39-.39-1.02 0 1.41.2.2.45.29.71.29s.51-.1.71-.29l1.45-1.45C22.2 13.63 22.5 10.1 21 6.01z"></path></svg></button>
+                 <button id="toggle-sidebar-btn" class="p-3 rounded-full bg-gray-700 hover:bg-gray-600 transition lg:hidden">Tools</button>
+            </div>
+        </main>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-96 bg-gray-800 p-4 flex flex-col sidebar sidebar-closed absolute top-0 right-0 h-full lg:static lg:transform-none">
+            <div class="flex border-b border-gray-600 mb-2">
+                <button data-tab="chat" class="tab-btn py-2 px-4 text-sm border-b-2 border-blue-500 text-white">Chat</button>
+                <button data-tab="whiteboard" class="tab-btn py-2 px-4 text-sm border-b-2 border-transparent text-gray-400">Whiteboard</button>
+                <button data-tab="files" class="tab-btn py-2 px-4 text-sm border-b-2 border-transparent text-gray-400">Files</button>
+            </div>
+            
+            <!-- Chat Tab -->
+            <div id="chat-tab" class="tab-content flex flex-col h-full">
+                <div id="chat-history" class="flex-grow overflow-y-auto pr-2 text-sm space-y-2"></div>
+                <form id="chat-form" class="flex gap-2 mt-2">
+                    <input id="chat-input" type="text" class="flex-grow bg-gray-700 p-2 rounded" placeholder="Type a message..."/>
+                    <button type="submit" class="bg-blue-600 px-4 rounded">Send</button>
+                </form>
+            </div>
+            
+            <!-- Whiteboard Tab -->
+            <div id="whiteboard-tab" class="hidden tab-content flex-col h-full">
+                <canvas id="whiteboard-canvas" width="400" height="400" class="bg-white rounded-md w-full flex-grow"></canvas>
+            </div>
+
+            <!-- Files Tab -->
+            <div id="files-tab" class="hidden tab-content flex-col h-full">
+                <input type="file" id="file-input" class="mb-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                <div id="file-list" class="flex-grow overflow-y-auto pr-2 text-sm space-y-2"></div>
+            </div>
+        </aside>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // --- Configs and Init ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB16KV-jDYQruDAXPmetR93oQ3KxZCKkQg",
+            authDomain: "my-video-app-c0852.firebaseapp.com",
+            projectId: "my-video-app-c0852",
+            appId: "1:310022725839:web:1f5d64681695166a2197ba",
+            };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        // --- WebRTC Config ---
+        // NOTE: WebRTC traffic is encrypted by default (DTLS-SRTP).
+        const servers = { iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }] };
+        let pc = new RTCPeerConnection(servers);
+        let localStream = null;
+        let remoteStream = null;
+        let dataChannel = null;
+
+        // --- DOM Elements ---
+        const lobbyScreen = document.getElementById('lobby-screen');
+        const callScreen = document.getElementById('call-screen');
+        const createCallBtn = document.getElementById('create-call-btn');
+        const joinCallBtn = document.getElementById('join-call-btn');
+        const callIdInput = document.getElementById('call-id-input');
+        const localVideo = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
+        const hangupBtn = document.getElementById('hangup-btn');
+        const shareScreenBtn = document.getElementById('share-screen-btn');
+        const sidebar = document.getElementById('sidebar');
+        const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+        const authStatus = document.getElementById('auth-status');
+        
+        // --- Auth Logic ---
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                authStatus.innerText = 'Connected';
+                createCallBtn.disabled = false;
+                joinCallBtn.disabled = false;
+            } else {
+                authStatus.innerText = 'Connection failed. Please refresh.';
+                createCallBtn.disabled = true;
+                joinCallBtn.disabled = true;
+            }
+        });
+        signInAnonymously(auth).catch(err => {
+            console.error("Anonymous sign in failed: ", err);
+            authStatus.innerText = 'Connection failed. Please refresh.';
+        });
+        
+        // --- Core Call Logic ---
+        createCallBtn.onclick = async () => {
+            await setupMedia();
+            setupDataChannel();
+
+            const callDoc = doc(collection(db, 'calls'));
+            const offerCandidates = collection(callDoc, 'offerCandidates');
+            const answerCandidates = collection(callDoc, 'answerCandidates');
+
+            callIdInput.value = callDoc.id;
+
+            pc.onicecandidate = e => e.candidate && addDoc(offerCandidates, e.candidate.toJSON());
+
+            const offerDescription = await pc.createOffer();
+            await pc.setLocalDescription(offerDescription);
+            await setDoc(callDoc, { offer: { sdp: offerDescription.sdp, type: offerDescription.type } });
+
+            onSnapshot(callDoc, snapshot => {
+                const data = snapshot.data();
+                if (!pc.currentRemoteDescription && data?.answer) {
+                    pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                }
+            });
+            onSnapshot(answerCandidates, s => s.docChanges().forEach(c => c.type === 'added' && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
+            
+            showCallScreen();
+        };
+
+        joinCallBtn.onclick = async () => {
+            const callId = callIdInput.value;
+            if (!callId) return alert("Please enter a call ID.");
+            
+            await setupMedia();
+            setupDataChannel();
+            
+            const callDoc = doc(db, 'calls', callId);
+            const answerCandidates = collection(callDoc, 'answerCandidates');
+            const offerCandidates = collection(callDoc, 'offerCandidates');
+
+            pc.onicecandidate = e => e.candidate && addDoc(answerCandidates, e.candidate.toJSON());
+            
+            const callData = (await getDoc(callDoc)).data();
+            await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+            
+            const answerDescription = await pc.createAnswer();
+            await pc.setLocalDescription(answerDescription);
+            await updateDoc(callDoc, { answer: { type: answerDescription.type, sdp: answerDescription.sdp } });
+
+            onSnapshot(offerCandidates, s => s.docChanges().forEach(c => c.type === 'added' && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))));
+
+            showCallScreen();
+        };
+        
+        hangupBtn.onclick = () => {
+            localStream.getTracks().forEach(track => track.stop());
+            pc.close();
+            pc = new RTCPeerConnection(servers); // Reset for next call
+            lobbyScreen.classList.remove('hidden');
+            callScreen.classList.add('hidden');
+        };
+
+        shareScreenBtn.onclick = () => setupMedia(true);
+        
+        // --- Media and UI Helpers ---
+        async function setupMedia(screen = false) {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            localStream = screen
+                ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+                : await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            
+            remoteStream = new MediaStream();
+
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            
+            pc.ontrack = event => {
+                event.streams[0].getTracks().forEach(track => remoteStream.addTrack(track));
+            };
+
+            localVideo.srcObject = localStream;
+            remoteVideo.srcObject = remoteStream;
+            
+            // If user stops sharing screen from browser UI
+            if (screen) {
+                localStream.getVideoTracks()[0].onended = () => setupMedia(false);
+            }
+        }
+
+        function showCallScreen() {
+            lobbyScreen.classList.add('hidden');
+            callScreen.classList.remove('hidden');
+        }
+
+        // --- Data Channel and Sidebar Logic ---
+        function setupDataChannel() {
+            pc.ondatachannel = event => {
+                dataChannel = event.channel;
+                setupDataChannelEvents();
+            };
+            dataChannel = pc.createDataChannel("app-data");
+            setupDataChannelEvents();
+        }
+
+        function setupDataChannelEvents() {
+            dataChannel.onmessage = event => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'chat') {
+                    appendChatMessage(data.sender, data.message);
+                } else if (data.type === 'draw') {
+                    drawOnCanvas(data.x0, data.y0, data.x1, data.y1, data.color);
+                } else if (data.type === 'file') {
+                    receiveFile(data);
+                }
+            };
+        }
+
+        // --- Sidebar: Tabs, Chat, Whiteboard, Files ---
+        const tabs = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabs.forEach(tab => {
+            tab.onclick = () => {
+                tabs.forEach(t => t.classList.replace('border-blue-500', 'border-transparent').replace('text-white', 'text-gray-400'));
+                tab.classList.replace('border-transparent', 'border-blue-500').replace('text-gray-400', 'text-white');
+                tabContents.forEach(c => c.id === `${tab.dataset.tab}-tab` ? c.classList.remove('hidden') : c.classList.add('hidden'));
+            };
+        });
+
+        // Chat
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        chatForm.onsubmit = e => {
+            e.preventDefault();
+            const message = chatInput.value;
+            const sender = `User-${auth.currentUser.uid.slice(-4)}`;
+            if (message) {
+                appendChatMessage(sender, message, true);
+                dataChannel.send(JSON.stringify({ type: 'chat', sender, message }));
+                chatInput.value = '';
+            }
+        };
+        
+        function appendChatMessage(sender, message, isLocal = false) {
+            const history = document.getElementById('chat-history');
+            const div = document.createElement('div');
+            div.innerHTML = `<strong class="${isLocal ? 'text-blue-300' : ''}">${sender}:</strong> ${message}`;
+            history.appendChild(div);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        // Whiteboard
+        const canvas = document.getElementById('whiteboard-canvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false, lastX=0, lastY=0;
+        const getCanvasPos = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        };
+        canvas.onmousedown = (e) => { isDrawing = true; [lastX, lastY] = [getCanvasPos(e).x, getCanvasPos(e).y]; };
+        canvas.onmouseup = () => isDrawing = false;
+        canvas.onmouseout = () => isDrawing = false;
+        canvas.onmousemove = (e) => {
+            if (!isDrawing) return;
+            const { x, y } = getCanvasPos(e);
+            drawOnCanvas(lastX, lastY, x, y, '#000'); // Simple black color
+            dataChannel.send(JSON.stringify({ type: 'draw', x0: lastX, y0: lastY, x1: x, y1: y, color: '#000'}));
+            [lastX, lastY] = [x, y];
+        };
+        function drawOnCanvas(x0, y0, x1, y1, color) {
+             ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+        }
+
+        // File Sharing
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const fileChunks = [];
+        let receivedFileData = {};
+
+        fileInput.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const CHUNK_SIZE = 16384;
+            let offset = 0;
+            dataChannel.send(JSON.stringify({ type: 'file', name: file.name, size: file.size, start: true }));
+            const reader = new FileReader();
+            reader.onload = e => {
+                dataChannel.send(e.target.result);
+                offset += e.target.result.byteLength;
+                if (offset < file.size) readSlice(offset);
+                else dataChannel.send(JSON.stringify({ type: 'file', name: file.name, end: true }));
+            };
+            const readSlice = o => reader.readAsArrayBuffer(file.slice(o, o + CHUNK_SIZE));
+            readSlice(0);
+        };
+
+        function receiveFile(data) {
+            if (data.start) {
+                fileChunks.length = 0;
+                receivedFileData = { name: data.name, size: data.size };
+                const div = document.createElement('div');
+                div.innerText = `Receiving ${data.name}...`;
+                div.id = `file-${data.name}`;
+                fileList.appendChild(div);
+            } else if (data.end) {
+                const file = new Blob(fileChunks);
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(file);
+                link.download = receivedFileData.name;
+                link.innerText = `Download ${receivedFileData.name}`;
+                link.className = "text-blue-400 hover:underline";
+                const div = document.getElementById(`file-${receivedFileData.name}`);
+                if (div) {
+                    div.innerHTML = '';
+                    div.appendChild(link);
+                }
+            } else {
+                fileChunks.push(data);
+            }
+        }
+        
+        // Mobile sidebar toggle
+        toggleSidebarBtn.onclick = () => sidebar.classList.toggle('sidebar-closed');
+
+    </script>
+</body>
+</html>
+
